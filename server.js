@@ -24,6 +24,9 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
+app.get("/",(req,res)=>{
+    res.send("Home")
+})
 // Handle POST request to upload an image
 app.post('/upload', upload.single('image'), (req, res) => {
   if (!req.file) {
@@ -32,7 +35,7 @@ app.post('/upload', upload.single('image'), (req, res) => {
 
   // Here, you might save the file information to a database
   // Generate a unique URL for the uploaded image
-  const imageUrl = `http://localhost:3000/uploads/${req.file.filename}`;
+  const imageUrl = `https://show-image.onrender.com/uploads/${req.file.filename}`;
   
   res.send(`Image uploaded successfully. URL: ${imageUrl}`);
 });
