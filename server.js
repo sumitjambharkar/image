@@ -35,7 +35,7 @@ app.post('/upload', upload.single('image'), (req, res) => {
 
   // Here, you might save the file information to a database
   // Generate a unique URL for the uploaded image
-  const imageUrl = `https://show-image.onrender.com/uploads/${req.file.filename}`;
+  const imageUrl = `https://images-6q5w.onrender.com/uploads/${req.file.filename}`;
   
   res.send(`Image uploaded successfully. URL: ${imageUrl}`);
 });
