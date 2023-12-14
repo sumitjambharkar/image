@@ -4,7 +4,7 @@ const path = require('path');
 require('dotenv').config()
 const fs = require('fs');
 
-const port =  5001 || process.env.PORT
+const port = process.env.PORT
 
 const app = express();
 
