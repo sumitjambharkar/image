@@ -1,45 +1,112 @@
-const express = require('express');
-const multer  = require('multer');
-const path = require('path');
-require('dotenv').config()
-const fs = require('fs');
+const express = require("express")
+const multer = require("multer")
+const { GridFsStorage } = require("multer-gridfs-storage")
+const MongoClient = require("mongodb").MongoClient
+const GridFSBucket = require("mongodb").GridFSBucket
+require("dotenv").config()
+
+const url = process.env.MONGO_DB_URL
 
 const port = process.env.PORT
 
-const app = express();
+const mongoClient = new MongoClient(url)
 
-app.use('/uploads', express.static('uploads'));
-
-// Set up Multer to handle file uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/') // Directory where uploaded files will be stored
+// Create a storage object with a given configuration
+const storage = new GridFsStorage({
+  url,
+  file: (req, file) => {
+    //If it is an image, save to photos bucket
+    if (file.mimetype === "image/jpeg" || file.mimetype === "image/png") {
+      return {
+        bucketName: "photos",
+        filename: `${Date.now()}_${file.originalname}`,
+      }
+    } else {
+      //Otherwise save to default bucket
+      return `${Date.now()}_${file.originalname}`
+    }
   },
-  filename: function (req, file, cb) {
-    // Generate a unique filename
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({ storage: storage });
-
-app.get("/",(req,res)=>{
-    res.send("Home")
 })
-// Handle POST request to upload an image
-app.post('/upload', upload.single('image'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).send('No files were uploaded.');
+
+// Set multer storage engine to the newly created object
+const upload = multer({ storage })
+
+const app = express()
+
+app.post("/upload/image", upload.single("image"), (req, res) => {
+  const file = req.file
+  // Respond with the file details
+  res.send({
+    message: "Uploaded",
+    id: file.id,
+    name: file.filename,
+    contentType: file.contentType,
+  })
+})
+
+app.get("/images", async (req, res) => {
+  try {
+    await mongoClient.connect()
+
+    const database = mongoClient.db("images")
+    const images = database.collection("photos.files")
+    const cursor = images.find({})
+    const count = await cursor.count()
+    if (count === 0) {
+      return res.status(404).send({
+        message: "Error: No Images found",
+      })
+    }
+
+    const allImages = []
+
+    await cursor.forEach(item => {
+      allImages.push(item)
+    })
+
+    res.send({ files: allImages })
+  } catch (error) {
+    console.log(error)
+    res.status(500).send({
+      message: "Error Something went wrong",
+      error,
+    })
   }
+})
 
-  // Here, you might save the file information to a database
-  // Generate a unique URL for the uploaded image
-  const imageUrl = `https://images-6q5w.onrender.com/uploads/${req.file.filename}`;
-  
-  res.send(`Image uploaded successfully. URL: ${imageUrl}`);
-});
+app.get("/download/:filename", async (req, res) => {
+  try {
+    await mongoClient.connect()
 
+    const database = mongoClient.db("images")
+
+    const imageBucket = new GridFSBucket(database, {
+      bucketName: "photos",
+    })
+
+    let downloadStream = imageBucket.openDownloadStreamByName(
+      req.params.filename
+    )
+
+    downloadStream.on("data", function (data) {
+      return res.status(200).write(data)
+    })
+
+    downloadStream.on("error", function (data) {
+      return res.status(404).send({ error: "Image not found" })
+    })
+
+    downloadStream.on("end", () => {
+      return res.end()
+    })
+  } catch (error) {
+    console.log(error)
+    res.status(500).send({
+      message: "Error Something went wrong",
+      error,
+    })
+  }
+})
 app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+  console.log(`Server started on port ${port}`);
 });
